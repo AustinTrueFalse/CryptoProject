@@ -35,7 +35,7 @@ export default {
       this.ticker = ''
     },
 
-    select(ticker) {c
+    select(ticker) {
       this.selected = ticker
       this.graph = []
     },
@@ -204,4 +204,4 @@ export default {
 
 
 
-<style src="./app.css"></style>
+<style></style>
