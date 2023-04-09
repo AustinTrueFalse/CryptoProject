@@ -8,17 +8,47 @@ export default {
       tickers: [],
       selected: null,
       graph: [],
+      coins: []
     };
   },
 
-  computed: {
-    queryTasks () {
-      return this.tickers.filter((t) => t.name == this.ticker.toUpperCase())
+  created() {
+    fetch('https://min-api.cryptocompare.com/data/all/coinlist?summary=true')
+        .then(res => res.json())
+        .then(data => this.coins.push(data.Data))
+
+    const tickersData = localStorage.getItem("crypto")
+
+    if(tickersData) {
+      this.tickers = JSON.parse(tickersData)
     }
+
+    this.tickers.forEach(ticker => {
+      this.subscribeToUpdates (ticker.name) }
+    )
+  },
+
+  computed: {
+    checkCurrentTiker () {
+      return this.tickers.filter((t) => t.name == this.ticker.toUpperCase())
+    },
+
   },
 
   methods: {
+    subscribeToUpdates (tickerName) {
+      setInterval(async() => {
+        const f = await fetch(`https://min-api.cryptocompare.com/data/price?fsym=${tickerName}&tsyms=USD&api_key=8d939e876251036d5508edfa56600914274cad7dfc637e874aeae9732dc9d288`);
+        const data = await f.json()
+        this.tickers.find(t => t.name === tickerName).price = data.USD > 1 ? data.USD.toFixed(2) : data.USD.toPrecision(2);
 
+            if (this.selected?.name === tickerName) {
+              this.graph.push(data.USD)
+            }
+        
+          }
+        , 5000)
+    },
 
     addTicker() {
       const currentTicker = {
@@ -36,17 +66,9 @@ export default {
 
         this.tickers.push(currentTicker)
 
-        setInterval(async() => {
-        const f = await fetch(`https://min-api.cryptocompare.com/data/price?fsym=${currentTicker.name}&tsyms=USD&api_key=8d939e876251036d5508edfa56600914274cad7dfc637e874aeae9732dc9d288`);
-        const data = await f.json()
-        this.tickers.find(t => t.name === currentTicker.name).price = data.USD > 1 ? data.USD.toFixed(2) : data.USD.toPrecision(2);
+        localStorage.setItem("crypto", JSON.stringify(this.tickers))
 
-            if (this.selected?.name === currentTicker.name) {
-              this.graph.push(data.USD)
-            }
-        
-          }
-        , 5000)
+        this.subscribeToUpdates(currentTicker.name)
 
       }
 
@@ -101,7 +123,9 @@ export default {
           <div class="max-w-xs">
             <label for="wallet" class="block text-sm font-medium text-gray-700"
               >Тикер</label
+
             >
+      
             <div class="mt-1 relative rounded-md shadow-md">
               <input
                 v-model="ticker"
@@ -127,7 +151,7 @@ export default {
               </span>
             </div>
           <div 
-          v-if="queryTasks.length"
+          v-if="checkCurrentTiker.length"
           class="text-sm text-red-600">Такой тикер уже добавлен</div>
 
           </div>
