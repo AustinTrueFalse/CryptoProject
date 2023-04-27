@@ -5,14 +5,29 @@ export default {
   data() {
     return {
       ticker: '',
+      filter: '',
+
       tickers: [],
       selected: null,
+
       graph: [],
-      coins: []
+      coins: [],
+      
+      page: 1,
     };
   },
 
   created() {
+    const windowData = Object.fromEntries(new URL(window.location).searchParams.entries())
+
+    if (windowData.filter) {
+      this.filter = windowData.filter
+    }
+
+    if (windowData.page) {
+      this.page = windowData.page
+    }
+
     fetch('https://min-api.cryptocompare.com/data/all/coinlist?summary=true')
         .then(res => res.json())
         .then(data => this.coins.push(data.Data))
@@ -33,9 +48,50 @@ export default {
       return this.tickers.filter((t) => t.name == this.ticker.toUpperCase())
     },
 
+    startIndex() {
+      return (this.page - 1) * 6
+    },
+
+    endIndex() {
+      return this.page * 6
+    },
+
+    filteredTickers() {
+      return this.tickers.filter(ticker => ticker.name.includes(this.filter.toLocaleUpperCase()));
+    },
+
+    paginatedTickers() {
+      return this.filteredTickers.slice(this.startIndex, this.endIndex);
+    },
+
+    hasNextPage() {
+      return this.filteredTickers.length > this.endIndex;
+    },
+
+    normalizedGraph() {
+      const maxValue = Math.max(...this.graph)
+      const minValue = Math.min(...this.graph)
+
+      if (maxValue == minValue) {
+        return this.graph.map(() => 50)
+      }
+
+      return this.graph.map(
+        price => 5 + ((price - minValue) * 95) / (maxValue - minValue)
+      )
+    },
+
+    pageStateOptions() {
+      return {
+        filter: this.filter,
+        page: this.page
+      }
+    }
+
   },
 
   methods: {
+
     subscribeToUpdates (tickerName) {
       setInterval(async() => {
         const f = await fetch(`https://min-api.cryptocompare.com/data/price?fsym=${tickerName}&tsyms=USD&api_key=8d939e876251036d5508edfa56600914274cad7dfc637e874aeae9732dc9d288`);
@@ -49,6 +105,7 @@ export default {
           }
         , 5000)
     },
+
 
     addTicker() {
       const currentTicker = {
@@ -64,40 +121,61 @@ export default {
 
         currentTicker.name = currentTicker.name.toUpperCase()
 
-        this.tickers.push(currentTicker)
-
-        localStorage.setItem("crypto", JSON.stringify(this.tickers))
+        this.tickers = [...this.tickers, currentTicker];
 
         this.subscribeToUpdates(currentTicker.name)
 
       }
 
       this.ticker = ''
+      this.filter = ''
 
   
     },
 
     select(ticker) {
       this.selected = ticker
-      this.graph = []
+      
     },
 
     handleDelete(tickerToRemove) {
       this.tickers = this.tickers.filter(t => t != tickerToRemove)
+      if (this.selected === tickerToRemove) {
+        this.selected = null
+      }
     },
 
 
-    normalizeGraph() {
-      const maxValue = Math.max(...this.graph)
-      const minValue = Math.min(...this.graph)
 
-      return this.graph.map(
-        price => 5 + ((price - minValue) * 95) / (maxValue - minValue)
-      )
+  },
+
+  watch: {
+
+      selected() {
+        this.graph = []
+      },
+
+      tickers(newValue, oldValue) {
+        localStorage.setItem("crypto", JSON.stringify(this.tickers))
+      },
+
+      paginatedTickers() {
+        if(this.paginatedTickers.length === 0 & this.page >= 1) {
+          this.page -= 1
+        }
+      },
+
+      filter() {
+        this.page = 1
+      },
+
+      pageStateOptions(value) {
+        window.history.pushState(
+          null, 
+          document.title, 
+          `${window.location.pathname}?filter=${value.filter}&page=${value.page}`)
+      }
     }
-
-
-  }
 };
 </script>
 
@@ -183,10 +261,27 @@ export default {
       <template
       v-if="tickers.length"
       >
+        <div>
+          <button
+            @click="page = page - 1"
+            v-if="page > 1"
+            class="my-4 inline-flex items-center py-2 px-4 border border-transparent shadow-sm text-sm leading-4 font-medium rounded-full text-white bg-gray-600 hover:bg-gray-700 transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
+          >Назад</button>
+          <button
+            @click="page = page + 1"
+            v-if="hasNextPage"
+            class="my-4 ml-4 inline-flex items-center py-2 px-4 border border-transparent shadow-sm text-sm leading-4 font-medium rounded-full text-white bg-gray-600 hover:bg-gray-700 transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
+          >Вперед</button>
+          Фильтр: 
+          <input
+            v-model="filter"
+            @input="page = 1"
+          /> 
+        </div>
         <hr class="w-full border-t border-gray-600 my-4" />
         <dl class="mt-5 grid grid-cols-1 gap-5 sm:grid-cols-3">
           <div
-            v-for="t in tickers"
+            v-for="t in paginatedTickers"
             :key="t.name"
             class="bg-white overflow-hidden shadow rounded-lg border-purple-800 border-solid cursor-pointer"
             :class="{
@@ -236,7 +331,7 @@ export default {
         </h3>
         <div class="flex items-end border-gray-600 border-b border-l h-64">
           <div 
-          v-for="(bar, idx) in normalizeGraph()"
+          v-for="(bar, idx) in normalizedGraph"
           :key="idx"
           :style="{ height: `${bar}%` }"
           class="bg-purple-800 border w-10"></div>
