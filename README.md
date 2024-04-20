@@ -1,6 +1,11 @@
-# crypto
+# Cryptocurrency Tracker Vue 3 Single Page Application
 
-This template should help get you started developing with Vue 3 in Vite.
+This is a single-page Vue 3 application with the ability to track the dynamics of selected cryptocurrencies.
+
+## Stack
+
+- Vue 3
+- Tailwind
 
 ## Recommended IDE Setup
 
